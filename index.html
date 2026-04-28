@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>牛牛大战僵尸</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+        }
+        #gameContainer {
+            position: relative;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0, 255, 100, 0.3);
+        }
+        #gameCanvas {
+            display: block;
+            border-radius: 10px;
+        }
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+        }
+        .resource-display {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 20px;
+            color: #fff;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .milk-icon {
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(180deg, #fff 0%, #e0e0e0 100%);
+            border-radius: 0 0 15px 15px;
+            position: relative;
+        }
+        .milk-icon::before {
+            content: '';
+            position: absolute;
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 15px;
+            height: 8px;
+            background: #4a90d9;
+            border-radius: 3px;
+        }
+        #cowSelector {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+        }
+        .cow-card {
+            width: 70px;
+            height: 90px;
+            background: linear-gradient(180deg, #3a5a40 0%, #2d4a35 100%);
+            border: 3px solid #5a8a60;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .cow-card:hover {
+            transform: scale(1.1);
+            border-color: #8fbc8f;
+        }
+        .cow-card.selected {
+            border-color: #ffd700;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+        }
+        .cow-card.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .cow-card .cost {
+            position: absolute;
+            bottom: 5px;
+            background: rgba(0,0,0,0.7);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            color: #fff;
+        }
+        .cow-card .name {
+            font-size: 11px;
+            color: #fff;
+            margin-top: 5px;
+        }
+        #startScreen, #levelScreen, #gameOverScreen, #winScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            border-radius: 10px;
+        }
+        .screen-title {
+            font-size: 48px;
+            margin-bottom: 20px;
+            text-shadow: 3px 3px 0 #2d5a27;
+            color: #7cfc00;
+        }
+        .btn {
+            padding: 15px 40px;
+            font-size: 20px;
+            background: linear-gradient(180deg, #4a7c59 0%, #2d5a27 100%);
+            border: none;
+            border-radius: 25px;
+            color: #fff;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s;
+        }
+        .btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(124, 252, 0, 0.5);
+        }
+        .level-btns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            max-width: 400px;
+        }
+        .level-btn {
+            width: 80px;
+            height: 80px;
+            font-size: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .level-btn.locked {
+            background: #444;
+            cursor: not-allowed;
+        }
+        .level-btn .stars {
+            font-size: 12px;
+            color: #ffd700;
+        }
+        #waveInfo {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 10px 30px;
+            border-radius: 20px;
+            color: #fff;
+            font-size: 16px;
+            pointer-events: none;
+        }
+        .hidden {
+            display: none !important;
+        }
+        #instructions {
+            position: absolute;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.7);
+            font-size: 14px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="1000" height="600"></canvas>
+        
+        <div id="ui">
+            <div class="resource-display">
+                <div class="milk-icon"></div>
+                <span id="milkCount">50</span>
+            </div>
+            <div class="resource-display">
+                <span>关卡: </span>
+                <span id="levelNum">1</span>
+            </div>
+        </div>
+        
+        <div id="waveInfo" class="hidden">波次: 1/5</div>
+        
+        <div id="cowSelector">
+            <div class="cow-card" data-type="resource" data-cost="50">
+                <canvas width="50" height="50" class="cow-preview"></canvas>
+                <span class="name">资源牛</span>
+                <span class="cost">50</span>
+            </div>
+            <div class="cow-card" data-type="melee" data-cost="100">
+                <canvas width="50" height="50" class="cow-preview"></canvas>
+                <span class="name">近战牛</span>
+                <span class="cost">100</span>
+            </div>
+            <div class="cow-card" data-type="ranged" data-cost="150">
+                <canvas width="50" height="50" class="cow-preview"></canvas>
+                <span class="name">远程牛</span>
+                <span class="cost">150</span>
+            </div>
+            <div class="cow-card" data-type="collector" data-cost="75">
+                <canvas width="50" height="50" class="cow-preview"></canvas>
+                <span class="name">收集牛</span>
+                <span class="cost">75</span>
+            </div>
+        </div>
+        
+        <div id="instructions">点击选择牛牛，然后点击草地放置 | 右键取消选择</div>
+        
+        <div id="startScreen">
+            <div class="screen-title">🐄 牛牛大战僵尸 🧟</div>
+            <p style="margin-bottom: 30px; color: #aaa;">保护你的农场，击退僵尸入侵！</p>
+            <button class="btn" id="startBtn">开始游戏</button>
+        </div>
+        
+        <div id="levelScreen" class="hidden">
+            <div class="screen-title">选择关卡</div>
+            <div class="level-btns" id="levelBtns"></div>
+            <button class="btn" id="backBtn">返回</button>
+        </div>
+        
+        <div id="gameOverScreen" class="hidden">
+            <div class="screen-title" style="color: #ff4444;">游戏结束</div>
+            <p style="margin-bottom: 20px;">僵尸突破了防线！</p>
+            <button class="btn" id="retryBtn">重试</button>
+            <button class="btn" id="menuBtn">返回菜单</button>
+        </div>
+        
+        <div id="winScreen" class="hidden">
+            <div class="screen-title">🎉 胜利！</div>
+            <p style="margin-bottom: 20px;">你成功守护了农场！</p>
+            <div id="starRating" style="font-size: 40px; margin-bottom: 20px;">⭐⭐⭐</div>
+            <button class="btn" id="nextLevelBtn">下一关</button>
+            <button class="btn" id="menuBtn2">返回菜单</button>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 游戏配置 ====================
+        const CONFIG = {
+            GRID_ROWS: 5,
+            GRID_COLS: 9,
+            CELL_WIDTH: 90,
+            CELL_HEIGHT: 100,
+            GRID_OFFSET_X: 80,
+            GRID_OFFSET_Y: 80,
+            INITIAL_MILK: 50,
+            MILK_DROP_INTERVAL: 8000,
+            MILK_DROP_VALUE: 25,
+        };
+
+        // 关卡配置
+        const LEVELS = [
+            { waves: 3, zombiesPerWave: 5, spawnInterval: 3000, types: ['normal'] },
+            { waves: 4, zombiesPerWave: 7, spawnInterval: 2800, types: ['normal', 'fast'] },
+            { waves: 5, zombiesPerWave: 8, spawnInterval: 2500, types: ['normal', 'fast'] },
+            { waves: 5, zombiesPerWave: 10, spawnInterval: 2200, types: ['normal', 'fast', 'fat'] },
+            { waves: 6, zombiesPerWave: 12, spawnInterval: 2000, types: ['normal', 'fast', 'fat'] },
+            { waves: 6, zombiesPerWave: 15, spawnInterval: 1800, types: ['normal', 'fast', 'fat'], boss: true },
+            { waves: 7, zombiesPerWave: 18, spawnInterval: 1600, types: ['normal', 'fast', 'fat'], boss: true },
+            { waves: 8, zombiesPerWave: 20, spawnInterval: 1500, types: ['normal', 'fast', 'fat'], boss: true },
+        ];
+
+        // 牛牛配置
+        const COW_CONFIG = {
+            resource: { cost: 50, hp: 100, produceInterval: 6000, produceValue: 25 },
+            melee: { cost: 100, hp: 200, damage: 30, attackInterval: 1000, range: 60 },
+            ranged: { cost: 150, hp: 80, damage: 20, attackInterval: 1500, range: 400 },
+            collector: { cost: 75, hp: 60, collectRange: 150, collectInterval: 500 }
+        };
+
+        // 僵尸配置
+        const ZOMBIE_CONFIG = {
+            normal: { hp: 100, speed: 0.5, damage: 10, color: '#5a8a5a' },
+            fast: { hp: 60, speed: 1, damage: 8, color: '#8a5a5a' },
+            fat: { hp: 300, speed: 0.3, damage: 20, color: '#4a6a4a' },
+            boss: { hp: 800, speed: 0.4, damage: 40, color: '#3a3a3a' }
+        };
+
+        // ==================== 游戏状态 ====================
+        const game = {
+            canvas: null,
+            ctx: null,
+            state: 'menu', // menu, playing, paused, gameover, win
+            milk: CONFIG.INITIAL_MILK,
+            level: 1,
+            unlockedLevels: 1,
+            levelStars: {},
+            selectedCow: null,
+            cows: [],
+            zombies: [],
+            projectiles: [],
+            drops: [],
+            particles: [],
+            grid: [],
+            currentWave: 0,
+            zombiesInWave: 0,
+            zombiesSpawned: 0,
+            lastMilkDrop: 0,
+            waveTimer: null,
+            spawnTimer: null,
+            animationId: null,
+            lastTime: 0,
+            audioCtx: null,
+        };
+
+        // ==================== 音效系统 ====================
+        function initAudio() {
+            try {
+                game.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {
+                console.log('Audio not supported');
+            }
+        }
+
+        function playSound(type) {
+            if (!game.audioCtx) return;
+            
+            const oscillator = game.audioCtx.createOscillator();
+            const gainNode = game.audioCtx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(game.audioCtx.destination);
+            
+            switch(type) {
+                case 'place':
+                    oscillator.frequency.value = 400;
+                    oscillator.type = 'sine';
+                    gainNode.gain.setValueAtTime(0.1, game.audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, game.audioCtx.currentTime + 0.1);
+                    oscillator.start();
+                    oscillator.stop(game.audioCtx.currentTime + 0.1);
+                    break;
+                case 'shoot':
+                    oscillator.frequency.value = 600;
+                    oscillator.type = 'square';
+                    gainNode.gain.setValueAtTime(0.05, game.audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, game.audioCtx.currentTime + 0.05);
+                    oscillator.start();
+                    oscillator.stop(game.audioCtx.currentTime + 0.05);
+                    break;
+                case 'hit':
+                    oscillator.frequency.value = 200;
+                    oscillator.type = 'sawtooth';
+                    gainNode.gain.setValueAtTime(0.1, game.audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, game.audioCtx.currentTime + 0.1);
+                    oscillator.start();
+                    oscillator.stop(game.audioCtx.currentTime + 0.1);
+                    break;
+                case 'collect':
+                    oscillator.frequency.value = 800;
+                    oscillator.type = 'sine';
+                    gainNode.gain.setValueAtTime(0.1, game.audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, game.audioCtx.currentTime + 0.15);
+                    oscillator.start();
+                    oscillator.stop(game.audioCtx.currentTime + 0.15);
+                    break;
+                case 'death':
+                    oscillator.frequency.value = 150;
+                    oscillator.type = 'sawtooth';
+                    gainNode.gain.setValueAtTime(0.15, game.audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, game.audioCtx.currentTime + 0.3);
+                    oscillator.start();
+                    oscillator.stop(game.audioCtx.currentTime + 0.3);
+                    break;
+                case 'win':
+                    const notes = [523, 659, 784, 1047];
+                    notes.forEach((freq, i) => {
+                        const osc = game.audioCtx.createOscillator();
+                        const gain = game.audioCtx.createGain();
+                        osc.connect(gain);
+                        gain.connect(game.audioCtx.destination);
+                        osc.frequency.value = freq;
+                        osc.type = 'sine';
+                        gain.gain.setValueAtTime(0.1, game.audioCtx.currentTime + i * 0.15);
+                        gain.gain.exponentialRampToValueAtTime(0.01, game.audioCtx.currentTime + i * 0.15 + 0.3);
+                        osc.start(game.audioCtx.currentTime + i * 0.15);
+                        osc.stop(game.audioCtx.currentTime + i * 0.15 + 0.3);
+                    });
+                    break;
+            }
+        }
+
+        // ==================== 绘图函数 ====================
+        function drawCow(ctx, type, x, y, size, state = 'idle', frame = 0) {
+            const s = size / 60;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(s, s);
+            
+            // 身体 - 奶牛花纹
+            ctx.fillStyle = '#f5f5f5';
+            ctx.beginPath();
+            ctx.ellipse(0, 5, 25, 20, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 奶牛斑点
+            ctx.fillStyle = '#2a2a2a';
+            ctx.beginPath();
+            ctx.ellipse(-8, 0, 8, 6, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(10, 8, 6, 5, -0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(5, -5, 5, 4, 0.5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 头
+            ctx.fillStyle = '#f5f5f5';
+            ctx.beginPath();
+            ctx.ellipse(-22, -5, 15, 12, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 头部斑点
+            ctx.fillStyle = '#2a2a2a';
+            ctx.beginPath();
+            ctx.ellipse(-25, -8, 5, 4, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 耳朵
+            ctx.fillStyle = '#f5f5f5';
+            ctx.beginPath();
+            ctx.ellipse(-30, -15, 6, 4, -0.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(-18, -18, 6, 4, 0.5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 耳朵内部
+            ctx.fillStyle = '#ffb6c1';
+            ctx.beginPath();
+            ctx.ellipse(-30, -15, 3, 2, -0.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(-18, -18, 3, 2, 0.5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 牛角
+            ctx.fillStyle = '#f0e68c';
+            ctx.beginPath();
+            ctx.moveTo(-32, -12);
+            ctx.quadraticCurveTo(-38, -25, -35, -28);
+            ctx.quadraticCurveTo(-32, -25, -30, -15);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(-18, -15);
+            ctx.quadraticCurveTo(-15, -28, -18, -30);
+            ctx.quadraticCurveTo(-22, -27, -20, -17);
+            ctx.fill();
+            
+            // 眼睛
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.ellipse(-28, -5, 5, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(-18, -5, 5, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 瞳孔
+            ctx.fillStyle = '#1a1a1a';
+            const pupilOffset = state === 'attack' ? 1 : 0;
+            ctx.beginPath();
+            ctx.arc(-27 + pupilOffset, -5, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(-17 + pupilOffset, -5, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 鼻子
+            ctx.fillStyle = '#ffb6c1';
+            ctx.beginPath();
+            ctx.ellipse(-35, 2, 4, 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 鼻孔
+            ctx.fillStyle = '#cc8899';
+            ctx.beginPath();
+            ctx.arc(-37, 2, 1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(-33, 2, 1, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 腿
+            ctx.fillStyle = '#f5f5f5';
+            for (let i = 0; i < 4; i++) {
+                const legX = -15 + i * 10;
+                const legY = state === 'walk' ? Math.sin(frame * 0.2 + i) * 3 : 0;
+                ctx.fillRect(legX, 18 + legY, 6, 15);
+                // 蹄子
+                ctx.fillStyle = '#4a4a4a';
+                ctx.fillRect(legX, 30 + legY, 6, 4);
+                ctx.fillStyle = '#f5f5f5';
+            }
+            
+            // 尾巴
+            ctx.strokeStyle = '#f5f5f5';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(25, 5);
+            const tailWave = Math.sin(frame * 0.1) * 5;
+            ctx.quadraticCurveTo(32 + tailWave, 0, 35 + tailWave, -10);
+            ctx.stroke();
+            ctx.fillStyle = '#2a2a2a';
+            ctx.beginPath();
+            ctx.arc(35 + tailWave, -10, 4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 根据类型添加特征
+            ctx.restore();
+            
+            // 类型特征
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(s, s);
+            
+            switch(type) {
+                case 'resource':
+                    // 奶桶标志
+                    ctx.fillStyle = '#4a90d9';
+                    ctx.fillRect(5, -15, 12, 15);
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '10px Arial';
+                    ctx.fillText('奶', 7, -3);
+                    break;
+                case 'melee':
+                    // 头盔
+                    ctx.fillStyle = '#8b4513';
+                    ctx.beginPath();
+                    ctx.arc(-22, -20, 12, Math.PI, 0);
+                    ctx.fill();
+                    ctx.fillStyle = '#654321';
+                    ctx.fillRect(-34, -20, 24, 3);
+                    break;
+                case 'ranged':
+                    // 眼镜
+                    ctx.strokeStyle = '#333';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.ellipse(-28, -5, 7, 5, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.ellipse(-18, -5, 7, 5, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-21, -5);
+                    ctx.lineTo(-25, -5);
+                    ctx.stroke();
+                    break;
+                case 'collector':
+                    // 竹篮
+                    ctx.fillStyle = '#deb887';
+                    ctx.beginPath();
+                    ctx.moveTo(10, -5);
+                    ctx.lineTo(25, -5);
+                    ctx.lineTo(22, 10);
+                    ctx.lineTo(13, 10);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.strokeStyle = '#8b4513';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    break;
+            }
+            
+            ctx.restore();
+        }
+
+        function drawZombie(ctx, type, x, y, size, state = 'walk', frame = 0) {
+            const s = size / 60;
+            const config = ZOMBIE_CONFIG[type];
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(s, s);
+            
+            const wobble = state === 'walk' ? Math.sin(frame * 0.15) * 3 : 0;
+            const armSwing = state === 'attack' ? Math.sin(frame * 0.3) * 15 : Math.sin(frame * 0.1) * 8;
+            
+            // 身体
+            ctx.fillStyle = config.color;
+            ctx.beginPath();
+            ctx.roundRect(-12, -10, 24, 35, 5);
+            ctx.fill();
+            
+            // 衣服破烂
+            ctx.fillStyle = '#3a3a3a';
+            ctx.beginPath();
+            ctx.moveTo(-12, 5);
+            ctx.lineTo(-8, 25);
+            ctx.lineTo(-12, 25);
+            ctx.closePath();
+            ctx.fill();
+            
+            // 头
+            ctx.fillStyle = '#6a8a6a';
+            ctx.beginPath();
+            ctx.arc(0, -20, 15, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 头发（稀疏）
+            ctx.fillStyle = '#2a2a2a';
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                ctx.moveTo(-10 + i * 5, -33);
+                ctx.lineTo(-8 + i * 5, -38 + Math.random() * 3);
+                ctx.lineTo(-6 + i * 5, -33);
+                ctx.fill();
+            }
+            
+            // 眼睛
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.ellipse(-6, -22, 4, 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(6, -22, 4, 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 瞳孔（红色）
+            ctx.fillStyle = '#ff3333';
+            ctx.beginPath();
+            ctx.arc(-6, -22, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(6, -22, 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 嘴
+            ctx.fillStyle = '#3a3a3a';
+            ctx.beginPath();
+            ctx.ellipse(0, -10, 8, 5, 0, 0, Math.PI);
+            ctx.fill();
+            
+            // 牙齿
+            ctx.fillStyle = '#ddd';
+            for (let i = 0; i < 4; i++) {
+                ctx.fillRect(-6 + i * 3, -12, 2, 4);
+            }
+            
+            // 手臂
+            ctx.fillStyle = '#6a8a6a';
+            ctx.save();
+            ctx.translate(-15, 0);
+            ctx.rotate((armSwing + 30) * Math.PI / 180);
+            ctx.fillRect(-5, 0, 8, 30);
+            // 手
+            ctx.fillStyle = '#5a7a5a';
+            ctx.beginPath();
+            ctx.arc(-1, 30, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            
+            ctx.save();
+            ctx.translate(15, 0);
+            ctx.rotate((-armSwing - 30) * Math.PI / 180);
+            ctx.fillRect(-3, 0, 8, 30);
+            ctx.fillStyle = '#5a7a5a';
+            ctx.beginPath();
+            ctx.arc(1, 30, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            
+            // 腿
+            ctx.fillStyle = '#4a5a4a';
+            const legOffset = state === 'walk' ? Math.sin(frame * 0.2) * 5 : 0;
+            ctx.fillRect(-10, 25, 8, 20 + legOffset);
+            ctx.fillRect(2, 25, 8, 20 - legOffset);
+            
+            // Boss 特征
+            if (type === 'boss') {
+                ctx.fillStyle = '#8b0000';
+                ctx.beginPath();
+                ctx.moveTo(-20, -35);
+                ctx.lineTo(0, -50);
+                ctx.lineTo(20, -35);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.fillStyle = '#ff0000';
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText('BOSS', -15, -40);
+            }
+            
+            ctx.restore();
+        }
+
+        function drawMilkDrop(ctx, x, y, size) {
+            const s = size / 30;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(s, s);
+            
+            // 牛奶瓶
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.moveTo(-8, -15);
+            ctx.lineTo(-10, 15);
+            ctx.lineTo(10, 15);
+            ctx.lineTo(8, -15);
+            ctx.closePath();
+            ctx.fill();
+            
+            // 瓶口
+            ctx.fillStyle = '#4a90d9';
+            ctx.fillRect(-6, -20, 12, 8);
+            
+            // 标签
+            ctx.fillStyle = '#4a90d9';
+            ctx.fillRect(-6, -5, 12, 10);
+            ctx.fillStyle = '#fff';
+            ctx.font = '8px Arial';
+            ctx.fillText('奶', -3, 3);
+            
+            // 光泽
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.beginPath();
+            ctx.ellipse(-4, 0, 2, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        function drawProjectile(ctx, x, y, type) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            if (type === 'milk') {
+                // 牛奶子弹
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 8, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#4a90d9';
+                ctx.beginPath();
+                ctx.ellipse(0, -2, 4, 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            ctx.restore();
+        }
+
+        // ==================== 游戏对象类 ====================
+        class Cow {
+            constructor(type, gridX, gridY) {
+                this.type = type;
+                this.gridX = gridX;
+                this.gridY = gridY;
+                this.x = CONFIG.GRID_OFFSET_X + gridX * CONFIG.CELL_WIDTH + CONFIG.CELL_WIDTH / 2;
+                this.y = CONFIG.GRID_OFFSET_Y + gridY * CONFIG.CELL_HEIGHT + CONFIG.CELL_HEIGHT / 2;
+                this.config = COW_CONFIG[type];
+                this.hp = this.config.hp;
+                this.maxHp = this.config.hp;
+                this.lastAction = 0;
+                this.frame = 0;
+                this.state = 'idle';
+            }
+            
+            update(deltaTime) {
+                this.frame += deltaTime * 60 / 1000;
+                
+                switch(this.type) {
+                    case 'resource':
+                        this.produceMilk(deltaTime);
+                        break;
+                    case 'melee':
+                        this.meleeAttack(deltaTime);
+                        break;
+                    case 'ranged':
+                        this.rangedAttack(deltaTime);
+                        break;
+                    case 'collector':
+                        this.collectDrops(deltaTime);
+                        break;
+                }
+            }
+            
+            produceMilk(deltaTime) {
+                this.lastAction += deltaTime;
+                if (this.lastAction >= this.config.produceInterval) {
+                    this.lastAction = 0;
+                    // 在附近生成牛奶
+                    const dropX = this.x + 30 + Math.random() * 20;
+                    const dropY = this.y + (Math.random() - 0.5) * 30;
+                    game.drops.push({
+                        x: dropX,
+                        y: dropY,
+                        value: this.config.produceValue,
+                        type: 'milk',
+                        lifetime: 15000
+                    });
+                    this.state = 'produce';
+                    setTimeout(() => this.state = 'idle', 500);
+                }
+            }
+            
+            meleeAttack(deltaTime) {
+                // 检测范围内的僵尸
+                const nearbyZombie = game.zombies.find(z => 
+                    z.y > this.y - CONFIG.CELL_HEIGHT / 2 &&
+                    z.y < this.y + CONFIG.CELL_HEIGHT / 2 &&
+                    z.x - this.x < this.config.range &&
+                    z.x > this.x
+                );
+                
+                if (nearbyZombie) {
+                    this.state = 'attack';
+                    this.lastAction += deltaTime;
+                    if (this.lastAction >= this.config.attackInterval) {
+                        this.lastAction = 0;
+                        nearbyZombie.hp -= this.config.damage;
+                        playSound('hit');
+                        createParticles(nearbyZombie.x, nearbyZombie.y, '#ff0', 5);
+                    }
+                } else {
+                    this.state = 'idle';
+                }
+            }
+            
+            rangedAttack(deltaTime) {
+                // 检测同行僵尸
+                const target = game.zombies.find(z =>
+                    z.y > this.y - CONFIG.CELL_HEIGHT / 2 &&
+                    z.y < this.y + CONFIG.CELL_HEIGHT / 2 &&
+                    z.x > this.x
+                );
+                
+                if (target) {
+                    this.state = 'attack';
+                    this.lastAction += deltaTime;
+                    if (this.lastAction >= this.config.attackInterval) {
+                        this.lastAction = 0;
+                        game.projectiles.push({
+                            x: this.x + 30,
+                            y: this.y,
+                            targetY: target.y,
+                            damage: this.config.damage,
+                            speed: 5,
+                            type: 'milk'
+                        });
+                        playSound('shoot');
+                    }
+                } else {
+                    this.state = 'idle';
+                }
+            }
+            
+            collectDrops(deltaTime) {
+                this.lastAction += deltaTime;
+                if (this.lastAction >= this.config.collectInterval) {
+                    this.lastAction = 0;
+                    
+                    const nearbyDrop = game.drops.find(d =>
+                        Math.abs(d.x - this.x) < this.config.collectRange &&
+                        Math.abs(d.y - this.y) < this.config.collectRange
+                    );
+                    
+                    if (nearbyDrop) {
+                        game.milk += nearbyDrop.value;
+                        game.drops = game.drops.filter(d => d !== nearbyDrop);
+                        playSound('collect');
+                        createParticles(nearbyDrop.x, nearbyDrop.y, '#4a90d9', 5);
+                        updateUI();
+                    }
+                }
+            }
+            
+            draw(ctx) {
+                drawCow(ctx, this.type, this.x, this.y, 50, this.state, this.frame);
+                
+                // 血条
+                if (this.hp < this.maxHp) {
+                    const barWidth = 40;
+                    const barHeight = 4;
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(this.x - barWidth/2, this.y - 35, barWidth, barHeight);
+                    ctx.fillStyle = '#4CAF50';
+                    ctx.fillRect(this.x - barWidth/2, this.y - 35, barWidth * (this.hp / this.maxHp), barHeight);
+                }
+            }
+        }
+
+        class Zombie {
+            constructor(type, row) {
+                this.type = type;
+                this.row = row;
+                this.config = ZOMBIE_CONFIG[type];
+                this.x = game.canvas.width + 50;
+                this.y = CONFIG.GRID_OFFSET_Y + row * CONFIG.CELL_HEIGHT + CONFIG.CELL_HEIGHT / 2;
+                this.hp = this.config.hp;
+                this.maxHp = this.config.hp;
+                this.speed = this.config.speed;
+                this.damage = this.config.damage;
+                this.frame = 0;
+                this.state = 'walk';
+                this.attackCooldown = 0;
+            }
+            
+            update(deltaTime) {
+                this.frame += deltaTime * 60 / 1000;
+                
+                // 检测前方是否有牛
+                const blockingCow = game.cows.find(c =>
+                    c.gridY === this.row &&
+                    Math.abs(c.x - this.x) < 40 &&
+                    c.x < this.x
+                );
+                
+                if (blockingCow) {
+                    this.state = 'attack';
+                    this.attackCooldown += deltaTime;
+                    if (this.attackCooldown >= 1000) {
+                        this.attackCooldown = 0;
+                        blockingCow.hp -= this.damage;
+                        playSound('hit');
+                        createParticles(blockingCow.x, blockingCow.y, '#f00', 3);
+                        
+                        if (blockingCow.hp <= 0) {
+                            game.cows = game.cows.filter(c => c !== blockingCow);
+                            game.grid[blockingCow.gridY][blockingCow.gridX] = null;
+                        }
+                    }
+                } else {
+                    this.state = 'walk';
+                    this.x -= this.speed * deltaTime * 60 / 1000;
+                }
+                
+                // 检测是否到达终点
+                if (this.x < CONFIG.GRID_OFFSET_X - 30) {
+                    gameOver();
+                }
+            }
+            
+            draw(ctx) {
+                drawZombie(ctx, this.type, this.x, this.y, this.type === 'boss' ? 80 : 50, this.state, this.frame);
+                
+                // 血条
+                const barWidth = this.type === 'boss' ? 60 : 40;
+                const barHeight = 4;
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x - barWidth/2, this.y - (this.type === 'boss' ? 50 : 35), barWidth, barHeight);
+                ctx.fillStyle = '#f44336';
+                ctx.fillRect(this.x - barWidth/2, this.y - (this.type === 'boss' ? 50 : 35), barWidth * (this.hp / this.maxHp), barHeight);
+            }
+        }
+
+        // ==================== 粒子系统 ====================
+        function createParticles(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                game.particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    color: color,
+                    life: 30,
+                    size: 3 + Math.random() * 3
+                });
+            }
+        }
+
+        function updateParticles() {
+            game.particles = game.particles.filter(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                p.size *= 0.95;
+                return p.life > 0;
+            });
+        }
+
+        // ==================== 游戏逻辑 ====================
+        function initGrid() {
+            game.grid = [];
+            for (let y = 0; y < CONFIG.GRID_ROWS; y++) {
+                game.grid[y] = [];
+                for (let x = 0; x < CONFIG.GRID_COLS; x++) {
+                    game.grid[y][x] = null;
+                }
+            }
+        }
+
+        function spawnZombie() {
+            const levelConfig = LEVELS[game.level - 1];
+            if (game.zombiesSpawned >= game.zombiesInWave) return;
+            
+            const types = levelConfig.types;
+            const type = types[Math.floor(Math.random() * types.length)];
+            const row = Math.floor(Math.random() * CONFIG.GRID_ROWS);
+            
+            game.zombies.push(new Zombie(type, row));
+            game.zombiesSpawned++;
+        }
+
+        function spawnBoss() {
+            const row = Math.floor(Math.random() * CONFIG.GRID_ROWS);
+            game.zombies.push(new Zombie('boss', row));
+        }
+
+        function startWave() {
+            const levelConfig = LEVELS[game.level - 1];
+            game.currentWave++;
+            game.zombiesSpawned = 0;
+            game.zombiesInWave = levelConfig.zombiesPerWave;
+            
+            document.getElementById('waveInfo').textContent = `波次: ${game.currentWave}/${levelConfig.waves}`;
+            document.getElementById('waveInfo').classList.remove('hidden');
+            
+            // 定时生成僵尸
+            if (game.spawnTimer) clearInterval(game.spawnTimer);
+            game.spawnTimer = setInterval(() => {
+                if (game.state !== 'playing') return;
+                spawnZombie();
+                
+                if (game.zombiesSpawned >= game.zombiesInWave) {
+                    clearInterval(game.spawnTimer);
+                }
+            }, levelConfig.spawnInterval);
+            
+            // Boss波次
+            if (levelConfig.boss && game.currentWave === levelConfig.waves) {
+                setTimeout(() => {
+                    if (game.state === 'playing') spawnBoss();
+                }, levelConfig.spawnInterval * 2);
+            }
+        }
+
+        function checkWaveComplete() {
+            if (game.zombies.length === 0 && game.zombiesSpawned >= game.zombiesInWave) {
+                const levelConfig = LEVELS[game.level - 1];
+                if (game.currentWave < levelConfig.waves) {
+                    // 下一波
+                    setTimeout(startWave, 3000);
+                } else {
+                    // 关卡完成
+                    levelComplete();
+                }
+            }
+        }
+
+        function levelComplete() {
+            game.state = 'win';
+            playSound('win');
+            
+            // 计算星级
+            const stars = game.milk >= 100 ? 3 : game.milk >= 50 ? 2 : 1;
+            game.levelStars[game.level] = Math.max(game.levelStars[game.level] || 0, stars);
+            
+            // 解锁下一关
+            if (game.level < LEVELS.length) {
+                game.unlockedLevels = Math.max(game.unlockedLevels, game.level + 1);
+            }
+            
+            document.getElementById('starRating').textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+            document.getElementById('winScreen').classList.remove('hidden');
+            
+            if (game.level >= LEVELS.length) {
+                document.getElementById('nextLevelBtn').classList.add('hidden');
+            } else {
+                document.getElementById('nextLevelBtn').classList.remove('hidden');
+            }
+        }
+
+        function gameOver() {
+            game.state = 'gameover';
+            playSound('death');
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+        }
+
+        function startLevel(level) {
+            game.level = level;
+            game.state = 'playing';
+            game.milk = CONFIG.INITIAL_MILK;
+            game.cows = [];
+            game.zombies = [];
+            game.projectiles = [];
+            game.drops = [];
+            game.particles = [];
+            game.currentWave = 0;
+            game.zombiesInWave = 0;
+            game.zombiesSpawned = 0;
+            game.lastMilkDrop = Date.now();
+            game.selectedCow = null;
+            
+            initGrid();
+            updateUI();
+            
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('levelScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('winScreen').classList.add('hidden');
+            
+            // 开始第一波
+            setTimeout(startWave, 3000);
+        }
+
+        function updateUI() {
+            document.getElementById('milkCount').textContent = Math.floor(game.milk);
+            document.getElementById('levelNum').textContent = game.level;
+            
+            // 更新牛牛卡片状态
+            document.querySelectorAll('.cow-card').forEach(card => {
+                const cost = parseInt(card.dataset.cost);
+                card.classList.toggle('disabled', game.milk < cost);
+                card.classList.toggle('selected', card.dataset.type === game.selectedCow);
+            });
+        }
+
+        // ==================== 主游戏循环 ====================
+        function update(deltaTime) {
+            if (game.state !== 'playing') return;
+            
+            // 更新牛牛
+            game.cows.forEach(cow => cow.update(deltaTime));
+            
+            // 更新僵尸
+            game.zombies.forEach(zombie => zombie.update(deltaTime));
+            
+            // 移除死亡僵尸
+            game.zombies = game.zombies.filter(z => {
+                if (z.hp <= 0) {
+                    createParticles(z.x, z.y, '#5a5', 10);
+                    return false;
+                }
+                return true;
+            });
+            
+            // 更新子弹
+            game.projectiles.forEach(p => {
+                p.x += p.speed * deltaTime * 60 / 1000;
+            });
+            
+            // 子弹碰撞检测
+            game.projectiles = game.projectiles.filter(p => {
+                const hit = game.zombies.find(z =>
+                    Math.abs(z.x - p.x) < 30 &&
+                    Math.abs(z.y - p.y) < 40
+                );
+                if (hit) {
+                    hit.hp -= p.damage;
+                    createParticles(p.x, p.y, '#fff', 3);
+                    return false;
+                }
+                return p.x < game.canvas.width;
+            });
+            
+            // 更新掉落物
+            game.drops = game.drops.filter(d => {
+                d.lifetime -= deltaTime;
+                return d.lifetime > 0;
+            });
+            
+            // 自动收集（玩家点击）
+            // 收集牛会自动收集
+            
+            // 天空掉落牛奶
+            if (Date.now() - game.lastMilkDrop > CONFIG.MILK_DROP_INTERVAL) {
+                game.lastMilkDrop = Date.now();
+                const x = CONFIG.GRID_OFFSET_X + Math.random() * (CONFIG.GRID_COLS * CONFIG.CELL_WIDTH);
+                const y = CONFIG.GRID_OFFSET_Y + Math.random() * (CONFIG.GRID_ROWS * CONFIG.CELL_HEIGHT);
+                game.drops.push({
+                    x: x,
+                    y: y,
+                    value: CONFIG.MILK_DROP_VALUE,
+                    type: 'milk',
+                    lifetime: 12000
+                });
+            }
+            
+            // 更新粒子
+            updateParticles();
+            
+            // 检查波次完成
+            checkWaveComplete();
+        }
+
+        function draw() {
+            const ctx = game.ctx;
+            
+            // 背景 - 草地
+            const gradient = ctx.createLinearGradient(0, 0, 0, game.canvas.height);
+            gradient.addColorStop(0, '#87CEEB');
+            gradient.addColorStop(0.3, '#98FB98');
+            gradient.addColorStop(1, '#228B22');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, game.canvas.width, game.canvas.height);
+            
+            // 绘制网格
+            ctx.strokeStyle = 'rgba(0, 100, 0, 0.3)';
+            ctx.lineWidth = 1;
+            for (let y = 0; y <= CONFIG.GRID_ROWS; y++) {
+                ctx.beginPath();
+                ctx.moveTo(CONFIG.GRID_OFFSET_X, CONFIG.GRID_OFFSET_Y + y * CONFIG.CELL_HEIGHT);
+                ctx.lineTo(CONFIG.GRID_OFFSET_X + CONFIG.GRID_COLS * CONFIG.CELL_WIDTH, CONFIG.GRID_OFFSET_Y + y * CONFIG.CELL_HEIGHT);
+                ctx.stroke();
+            }
+            for (let x = 0; x <= CONFIG.GRID_COLS; x++) {
+                ctx.beginPath();
+                ctx.moveTo(CONFIG.GRID_OFFSET_X + x * CONFIG.CELL_WIDTH, CONFIG.GRID_OFFSET_Y);
+                ctx.lineTo(CONFIG.GRID_OFFSET_X + x * CONFIG.CELL_WIDTH, CONFIG.GRID_OFFSET_Y + CONFIG.GRID_ROWS * CONFIG.CELL_HEIGHT);
+                ctx.stroke();
+            }
+            
+            // 绘制左侧区域（牛牛放置区）
+            ctx.fillStyle = 'rgba(139, 69, 19, 0.3)';
+            ctx.fillRect(0, 0, CONFIG.GRID_OFFSET_X - 10, game.canvas.height);
+            
+            // 绘制右侧区域（僵尸来袭区）
+            ctx.fillStyle = 'rgba(100, 0, 0, 0.2)';
+            const rightStart = CONFIG.GRID_OFFSET_X + CONFIG.GRID_COLS * CONFIG.CELL_WIDTH + 10;
+            ctx.fillRect(rightStart, 0, game.canvas.width - rightStart, game.canvas.height);
+            
+            // 绘制掉落物
+            game.drops.forEach(d => {
+                drawMilkDrop(ctx, d.x, d.y, 25);
+                // 闪烁效果
+                if (d.lifetime < 3000 && Math.floor(d.lifetime / 300) % 2 === 0) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                    ctx.beginPath();
+                    ctx.arc(d.x, d.y, 20, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+            
+            // 绘制牛牛
+            game.cows.forEach(cow => cow.draw(ctx));
+            
+            // 绘制僵尸
+            game.zombies.forEach(zombie => zombie.draw(ctx));
+            
+            // 绘制子弹
+            game.projectiles.forEach(p => drawProjectile(ctx, p.x, p.y, p.type));
+            
+            // 绘制粒子
+            game.particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 30;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+            
+            // 绘制选中提示
+            if (game.selectedCow && game.state === 'playing') {
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+                const mousePos = game.mousePos || {x: 0, y: 0};
+                const gridX = Math.floor((mousePos.x - CONFIG.GRID_OFFSET_X) / CONFIG.CELL_WIDTH);
+                const gridY = Math.floor((mousePos.y - CONFIG.GRID_OFFSET_Y) / CONFIG.CELL_HEIGHT);
+                
+                if (gridX >= 0 && gridX < CONFIG.GRID_COLS && gridY >= 0 && gridY < CONFIG.GRID_ROWS) {
+                    if (!game.grid[gridY][gridX]) {
+                        ctx.fillRect(
+                            CONFIG.GRID_OFFSET_X + gridX * CONFIG.CELL_WIDTH,
+                            CONFIG.GRID_OFFSET_Y + gridY * CONFIG.CELL_HEIGHT,
+                            CONFIG.CELL_WIDTH,
+                            CONFIG.CELL_HEIGHT
+                        );
+                    }
+                }
+            }
+        }
+
+        function gameLoop(timestamp) {
+            const deltaTime = timestamp - game.lastTime;
+            game.lastTime = timestamp;
+            
+            update(deltaTime);
+            draw();
+            
+            game.animationId = requestAnimationFrame(gameLoop);
+        }
+
+        // ==================== 事件处理 ====================
+        function handleClick(e) {
+            if (game.state !== 'playing') return;
+            
+            const rect = game.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // 检查是否点击掉落物
+            const clickedDrop = game.drops.find(d =>
+                Math.abs(d.x - x) < 25 && Math.abs(d.y - y) < 25
+            );
+            
+            if (clickedDrop) {
+                game.milk += clickedDrop.value;
+                game.drops = game.drops.filter(d => d !== clickedDrop);
+                playSound('collect');
+                createParticles(clickedDrop.x, clickedDrop.y, '#4a90d9', 5);
+                updateUI();
+                return;
+            }
+            
+            // 检查是否在网格内放置牛牛
+            if (game.selectedCow) {
+                const gridX = Math.floor((x - CONFIG.GRID_OFFSET_X) / CONFIG.CELL_WIDTH);
+                const gridY = Math.floor((y - CONFIG.GRID_OFFSET_Y) / CONFIG.CELL_HEIGHT);
+                
+                if (gridX >= 0 && gridX < CONFIG.GRID_COLS && gridY >= 0 && gridY < CONFIG.GRID_ROWS) {
+                    if (!game.grid[gridY][gridX]) {
+                        const cost = COW_CONFIG[game.selectedCow].cost;
+                        if (game.milk >= cost) {
+                            game.milk -= cost;
+                            const cow = new Cow(game.selectedCow, gridX, gridY);
+                            game.cows.push(cow);
+                            game.grid[gridY][gridX] = cow;
+                            playSound('place');
+                            createParticles(cow.x, cow.y, '#7cfc00', 8);
+                            updateUI();
+                        }
+                    }
+                }
+            }
+        }
+
+        function handleMouseMove(e) {
+            const rect = game.canvas.getBoundingClientRect();
+            game.mousePos = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        function handleContextMenu(e) {
+            e.preventDefault();
+            game.selectedCow = null;
+            updateUI();
+        }
+
+        // ==================== 初始化 ====================
+        function init() {
+            game.canvas = document.getElementById('gameCanvas');
+            game.ctx = game.canvas.getContext('2d');
+            
+            initAudio();
+            initGrid();
+            
+            // 绘制牛牛预览
+            document.querySelectorAll('.cow-card').forEach(card => {
+                const preview = card.querySelector('.cow-preview');
+                const ctx = preview.getContext('2d');
+                drawCow(ctx, card.dataset.type, 25, 30, 40, 'idle', 0);
+            });
+            
+            // 事件监听
+            game.canvas.addEventListener('click', handleClick);
+            game.canvas.addEventListener('mousemove', handleMouseMove);
+            game.canvas.addEventListener('contextmenu', handleContextMenu);
+            
+            // 牛牛选择
+            document.querySelectorAll('.cow-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    if (!card.classList.contains('disabled')) {
+                        game.selectedCow = game.selectedCow === card.dataset.type ? null : card.dataset.type;
+                        updateUI();
+                    }
+                });
+            });
+            
+            // 按钮事件
+            document.getElementById('startBtn').addEventListener('click', () => {
+                showLevelSelect();
+            });
+            
+            document.getElementById('backBtn').addEventListener('click', () => {
+                document.getElementById('levelScreen').classList.add('hidden');
+                document.getElementById('startScreen').classList.remove('hidden');
+            });
+            
+            document.getElementById('retryBtn').addEventListener('click', () => {
+                startLevel(game.level);
+            });
+            
+            document.getElementById('menuBtn').addEventListener('click', showLevelSelect);
+            document.getElementById('menuBtn2').addEventListener('click', showLevelSelect);
+            
+            document.getElementById('nextLevelBtn').addEventListener('click', () => {
+                if (game.level < LEVELS.length) {
+                    startLevel(game.level + 1);
+                }
+            });
+            
+            // 开始游戏循环
+            game.lastTime = performance.now();
+            gameLoop(game.lastTime);
+        }
+
+        function showLevelSelect() {
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('winScreen').classList.add('hidden');
+            document.getElementById('levelScreen').classList.remove('hidden');
+            
+            // 生成关卡按钮
+            const levelBtns = document.getElementById('levelBtns');
+            levelBtns.innerHTML = '';
+            
+            for (let i = 1; i <= LEVELS.length; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'btn level-btn' + (i > game.unlockedLevels ? ' locked' : '');
+                btn.innerHTML = `${i}<span class="stars">${'⭐'.repeat(game.levelStars[i] || 0)}</span>`;
+                
+                if (i <= game.unlockedLevels) {
+                    btn.addEventListener('click', () => startLevel(i));
+                }
+                
+                levelBtns.appendChild(btn);
+            }
+        }
+
+        // 启动游戏
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
