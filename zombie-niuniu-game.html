@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🐮 僵尸大战牛牛 🧟</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            background: #1a1a2e;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: none;
+        }
+        body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #gameContainer { position: relative; transform-origin: top center; }
+        #topBar {
+            display: flex; align-items: center; justify-content: space-between;
+            width: 900px; padding: 8px 12px;
+            background: linear-gradient(180deg, #2c1810, #1a0f08);
+            border: 2px solid #5a3a20; border-bottom: none; border-radius: 8px 8px 0 0;
+        }
+        .resource { display: flex; align-items: center; gap: 4px; font-size: 16px; font-weight: bold; color: white; }
+        .resource .icon { font-size: 20px; }
+        .resource .val { color: #ffd700; min-width: 30px; }
+        .wave-info { color: #aaa; font-size: 13px; }
+        #shopBar {
+            display: flex; align-items: center; gap: 6px;
+            width: 900px; padding: 5px 10px;
+            background: linear-gradient(180deg, #3a2515, #2c1810);
+            border: 2px solid #5a3a20; border-top: 1px solid #6a4a30; border-bottom: none;
+            flex-wrap: nowrap; overflow-x: auto;
+        }
+        .shop-item {
+            display: flex; align-items: center; gap: 4px;
+            padding: 4px 8px; background: rgba(0,0,0,0.4);
+            border: 2px solid #555; border-radius: 8px;
+            cursor: pointer; transition: all 0.2s;
+            color: white; font-size: 12px; flex-shrink: 0;
+        }
+        .shop-item:hover { border-color: #ffd700; background: rgba(255,215,0,0.15); }
+        .shop-item.selected { border-color: #00ff88; background: rgba(0,255,136,0.2); box-shadow: 0 0 10px rgba(0,255,136,0.3); }
+        .shop-item.disabled { opacity: 0.4; cursor: not-allowed; }
+        .shop-item .cost { display: flex; align-items: center; gap: 2px; font-size: 11px; color: #ffd700; }
+        .shop-item .emoji { font-size: 18px; }
+        .shop-item .name { font-weight: bold; font-size: 11px; }
+        .shop-item .desc { font-size: 9px; color: #aaa; }
+        .shop-divider { width: 1px; height: 36px; background: #5a3a20; flex-shrink: 0; }
+        canvas { border: 2px solid #5a3a20; border-top: none; display: block; cursor: pointer; }
+        #overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.85); z-index: 10; border-radius: 8px;
+        }
+        #overlay h1 { font-size: 36px; color: white; margin-bottom: 8px; text-shadow: 0 0 20px rgba(255,0,0,0.8); }
+        #overlay h2 { font-size: 15px; color: #aaa; margin-bottom: 20px; text-align: center; padding: 0 20px; }
+        #overlay button, #gameOverPanel button {
+            padding: 14px 40px; font-size: 22px;
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: white; border: none; border-radius: 50px;
+            cursor: pointer; font-weight: bold; transition: all 0.3s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #overlay button:hover { transform: scale(1.1); box-shadow: 0 0 30px rgba(231,76,60,0.6); }
+        .tip { color: #888; font-size: 12px; margin-top: 10px; text-align: center; padding: 0 20px; line-height: 1.6; }
+        #gameOverPanel {
+            display: none; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); text-align: center;
+            color: white; z-index: 10; background: rgba(0,0,0,0.9);
+            padding: 30px 40px; border-radius: 16px; border: 2px solid #e74c3c;
+        }
+        #gameOverPanel h1 { font-size: 32px; color: #e74c3c; margin-bottom: 10px; }
+        #gameOverPanel p { font-size: 16px; margin-bottom: 6px; color: #ffd700; }
+        #gameOverPanel button { margin-top: 15px; background: linear-gradient(135deg, #27ae60, #2ecc71); }
+        #gameOverPanel button:hover { transform: scale(1.1); }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="topBar">
+            <div class="resource"><span class="icon">💰</span> 金币: <span class="val" id="coinCount">0</span>元</div>
+            <div class="wave-info" id="waveInfo">第 1 波</div>
+            <div class="resource"><span class="icon">💀</span> 击杀: <span class="val" id="killCount">0</span></div>
+        </div>
+        <div id="shopBar">
+            <div class="shop-item" data-type="collector" onclick="selectCow('collector')">
+                <span class="emoji">🐄</span>
+                <div>
+                    <div class="name">收集牛</div>
+                    <div class="desc">自动拾取金币</div>
+                    <div class="cost">💰10元</div>
+                </div>
+            </div>
+            <div class="shop-item" data-type="lv1" onclick="selectCow('lv1')">
+                <span class="emoji">🐮</span>
+                <div>
+                    <div class="name">1级牛</div>
+                    <div class="desc">吐奶攻击</div>
+                    <div class="cost">💰10元 <span style="color:#00ff88;font-size:9px">(首只免费)</span></div>
+                </div>
+            </div>
+            <div class="shop-item" data-type="lv2" onclick="selectCow('lv2')">
+                <span class="emoji">🐂</span>
+                <div>
+                    <div class="name">2级牛</div>
+                    <div class="desc">强力吐奶</div>
+                    <div class="cost">💰30元</div>
+                </div>
+            </div>
+            <div class="shop-item" data-type="lv3" onclick="selectCow('lv3')">
+                <span class="emoji">🐃</span>
+                <div>
+                    <div class="name">3级牛</div>
+                    <div class="desc">超级吐奶</div>
+                    <div class="cost">💰50元</div>
+                </div>
+            </div>
+            <div class="shop-divider"></div>
+            <div class="shop-item" data-type="shovel" onclick="selectCow('shovel')">
+                <span class="emoji">🔧</span>
+                <div>
+                    <div class="name">铲子</div>
+                    <div class="desc">移除</div>
+                    <div class="cost">免费</div>
+                </div>
+            </div>
+        </div>
+        <canvas id="gameCanvas" width="900" height="500"></canvas>
+        <div id="overlay">
+            <h1>🐮 僵尸大战牛牛 🧟</h1>
+            <h2>放置牛牛吐奶消灭僵尸！收集金币购买更多牛牛！</h2>
+            <button onclick="startGame()">开始游戏</button>
+            <p class="tip">📱 电脑鼠标点击 / 手机触屏操作<br>开局送1只免费1级牛，点击网格选择位置放置！<br>击败僵尸掉落2枚金币(每枚5元)，收集金币购买更多牛牛</p>
+        </div>
+        <div id="gameOverPanel">
+            <h1>💀 游戏结束 💀</h1>
+            <p>击杀僵尸: <span id="finalKills">0</span></p>
+            <p>存活波次: <span id="finalWave">1</span></p>
+            <button onclick="restartGame()">再来一局</button>
+        </div>
+    </div>
+
+    <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // ===== 常量 =====
+    const COLS = 9, ROWS = 5;
+    const CELL_W = 80, CELL_H = 90;
+    const GRID_X = 110, GRID_Y = 30;
+    const canvasW = 900, canvasH = 500;
+
+    // 金币定义：1金币=5元
+    const COIN_VALUE = 5;
+
+    // 随机额外掉落的金币面值
+    const BONUS_COINS = [
+        { value: 1,  color: '#cd7f32', radius: 7  },  // 铜币1元
+        { value: 5,  color: '#ffd700', radius: 9  },  // 金币5元
+        { value: 10, color: '#ff6347', radius: 10 },  // 红币10元
+        { value: 20, color: '#9b59b6', radius: 12 },  // 紫币20元
+    ];
+
+    // ===== 游戏状态 =====
+    let gameState = 'menu';
+    let coins = 0; // 金币（元）
+    let kills = 0;
+    let wave = 1;
+    let frameCount = 0;
+    let selectedCow = 'lv1';
+    let grid = [];
+    let zombies = [];
+    let milkBullets = [];
+    let drops = [];
+    let particles = [];
+    let floatingTexts = [];
+    let screenShake = 0;
+    let waveZombieTotal = 0;
+    let waveZombieSpawned = 0;
+    let waveZombieKilled = 0;
+    let spawnTimer = 0;
+    let waveDelay = 0;
+    let freeLv1Placed = false;
+
+    // 牛牛定义 — 全部用金币(元)购买
+    const COW_TYPES = {
+        collector: {
+            name: '收集牛', emoji: '🐄', cost: 10,
+            desc: '自动收集金币',
+            hp: 100, range: 0, attackRate: 0, damage: 0
+        },
+        lv1: {
+            name: '1级牛', emoji: '🐮', cost: 10,
+            desc: '吐奶攻击僵尸',
+            hp: 150, range: 999, attackRate: 45, damage: 2
+        },
+        lv2: {
+            name: '2级牛', emoji: '🐂', cost: 30,
+            desc: '强力吐奶，伤害翻倍',
+            hp: 150, range: 999, attackRate: 50, damage: 2
+        },
+        lv3: {
+            name: '3级牛', emoji: '🐃', cost: 50,
+            desc: '超级吐奶，三倍伤害',
+            hp: 200, range: 999, attackRate: 35, damage: 3
+        }
+    };
+
+    // ===== 响应式缩放 =====
+    function resizeGame() {
+        const container = document.getElementById('gameContainer');
+        const totalW = 900, totalH = 560;
+        const scale = Math.min(window.innerWidth / totalW, window.innerHeight / totalH, 1.2);
+        container.style.transform = `scale(${scale})`;
+        container.style.marginTop = Math.max(0, (window.innerHeight - totalH * scale) / 2) + 'px';
+    }
+    window.addEventListener('resize', resizeGame);
+    resizeGame();
+
+    // ===== 初始化 =====
+    function initGrid() {
+        grid = [];
+        for (let r = 0; r < ROWS; r++) {
+            grid[r] = [];
+            for (let c = 0; c < COLS; c++) grid[r][c] = null;
+        }
+    }
+
+    function startGame() {
+        document.getElementById('overlay').style.display = 'none';
+        gameState = 'playing';
+        coins = 0;
+        kills = 0; wave = 1; frameCount = 0;
+        waveZombieTotal = 3; waveZombieSpawned = 0; waveZombieKilled = 0;
+        spawnTimer = 0; waveDelay = 300;
+        zombies = []; milkBullets = []; drops = []; particles = []; floatingTexts = [];
+        screenShake = 0; selectedCow = 'lv1'; freeLv1Placed = false;
+        initGrid();
+        addFloatingText(450, 250, '👆 点击网格放置免费1级牛!', '#00ff88', 22);
+        updateUI(); updateShopUI();
+        gameLoop();
+    }
+
+    function restartGame() {
+        document.getElementById('gameOverPanel').style.display = 'none';
+        startGame();
+    }
+
+    function gameOver() {
+        gameState = 'gameover';
+        document.getElementById('finalKills').textContent = kills;
+        document.getElementById('finalWave').textContent = wave;
+        document.getElementById('gameOverPanel').style.display = 'block';
+    }
+
+    // ===== UI =====
+    function updateUI() {
+        document.getElementById('coinCount').textContent = coins;
+        document.getElementById('waveInfo').textContent = `第 ${wave} 波`;
+        document.getElementById('killCount').textContent = kills;
+    }
+
+    function updateShopUI() {
+        document.querySelectorAll('.shop-item').forEach(el => {
+            const type = el.dataset.type;
+            if (type === 'shovel') {
+                el.classList.toggle('selected', selectedCow === 'shovel');
+                el.classList.remove('disabled');
+                return;
+            }
+            el.classList.toggle('selected', selectedCow === type);
+            const cowDef = COW_TYPES[type];
+            let canAfford = false;
+            if (type === 'lv1' && !freeLv1Placed) {
+                canAfford = true;
+            } else {
+                canAfford = coins >= cowDef.cost;
+            }
+            el.classList.toggle('disabled', !canAfford);
+        });
+    }
+
+    function selectCow(type) {
+        selectedCow = type === 'shovel' ? (selectedCow === 'shovel' ? 'lv1' : 'shovel') : type;
+        updateShopUI();
+    }
+
+    // ===== 坐标工具 =====
+    function cellCenter(row, col) {
+        return { x: GRID_X + col * CELL_W + CELL_W / 2, y: GRID_Y + row * CELL_H + CELL_H / 2 };
+    }
+
+    function getCellFromPos(mx, my) {
+        const col = Math.floor((mx - GRID_X) / CELL_W);
+        const row = Math.floor((my - GRID_Y) / CELL_H);
+        return (row >= 0 && row < ROWS && col >= 0 && col < COLS) ? { row, col } : null;
+    }
+
+    function screenToCanvas(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        return { x: (clientX - rect.left) * (canvasW / rect.width), y: (clientY - rect.top) * (canvasH / rect.height) };
+    }
+
+    // ===== 手动收集掉落物 =====
+    function tryCollectDrop(mx, my) {
+        const collectRadius = 30;
+        for (let i = drops.length - 1; i >= 0; i--) {
+            const d = drops[i];
+            if (d.attracted) continue;
+            const dx = mx - d.x, dy = my - d.y;
+            if (Math.sqrt(dx * dx + dy * dy) < collectRadius) {
+                coins += d.value;
+                addFloatingText(d.x, d.y - 15, `+${d.value}💰`, '#ffd700', 18);
+                for (let j = 0; j < 5; j++) {
+                    particles.push({
+                        x: d.x, y: d.y,
+                        vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4 - 1,
+                        size: 2 + Math.random() * 2, alpha: 1,
+                        color: '#ffd700', decay: 0.04
+                    });
+                }
+                drops.splice(i, 1);
+                updateUI(); updateShopUI();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ===== 点击/触屏处理 =====
+    function handleGameInput(clientX, clientY) {
+        if (gameState !== 'playing') return;
+        const { x: mx, y: my } = screenToCanvas(clientX, clientY);
+
+        if (tryCollectDrop(mx, my)) return;
+
+        const cell = getCellFromPos(mx, my);
+        if (!cell) return;
+
+        if (selectedCow === 'shovel') {
+            if (grid[cell.row][cell.col]) {
+                const pos = cellCenter(cell.row, cell.col);
+                addFloatingText(pos.x, pos.y, '铲除!', '#ff8888', 18);
+                grid[cell.row][cell.col] = null;
+            }
+            return;
+        }
+
+        if (grid[cell.row][cell.col]) return;
+
+        const cowDef = COW_TYPES[selectedCow];
+        let canAfford = false, isFree = false;
+        if (selectedCow === 'lv1' && !freeLv1Placed) {
+            canAfford = true; isFree = true;
+        } else {
+            canAfford = coins >= cowDef.cost;
+        }
+
+        if (!canAfford) {
+            addFloatingText(mx, my, `需要 ${cowDef.cost}元!`, '#ff4444', 20);
+            return;
+        }
+
+        if (!isFree) coins -= cowDef.cost;
+        if (isFree) freeLv1Placed = true;
+
+        const pos = cellCenter(cell.row, cell.col);
+        grid[cell.row][cell.col] = {
+            type: selectedCow, hp: cowDef.hp, maxHp: cowDef.hp,
+            attackCooldown: 0, bobOffset: Math.random() * Math.PI * 2,
+            muzzleFlash: 0, collectAnim: 0,
+            row: cell.row, col: cell.col
+        };
+        addFloatingText(pos.x, pos.y - 20, cowDef.emoji + (isFree ? ' 免费放置!' : ' 放置!'), '#00ff88', 18);
+        updateUI(); updateShopUI();
+    }
+
+    canvas.addEventListener('click', (e) => handleGameInput(e.clientX, e.clientY));
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        handleGameInput(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: false });
+    document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+
+    // ===== 僵尸生成 =====
+    function spawnZombie() {
+        const row = Math.floor(Math.random() * ROWS);
+        const baseHp = 2 + wave * 2;
+        const speed = 0.2 + wave * 0.025 + Math.random() * 0.1;
+        const isFast = wave >= 2 && Math.random() < 0.25;
+        const isBig = wave >= 3 && Math.random() < 0.15;
+
+        zombies.push({
+            row, x: canvasW + 20,
+            y: GRID_Y + row * CELL_H + CELL_H / 2,
+            hp: isBig ? baseHp * 3 : (isFast ? baseHp * 0.7 : baseHp),
+            maxHp: isBig ? baseHp * 3 : (isFast ? baseHp * 0.7 : baseHp),
+            speed: isFast ? speed * 1.6 : (isBig ? speed * 0.6 : speed),
+            isFast, isBig,
+            wobble: Math.random() * Math.PI * 2,
+            id: Math.random(), eating: false, eatTarget: null
+        });
+        waveZombieSpawned++;
+    }
+
+    // ===== 吐奶攻击 =====
+    function cowAttack(cow, row, col) {
+        const cowDef = COW_TYPES[cow.type];
+        if (!cowDef.damage) return;
+        if (!zombies.some(z => z.row === row && z.x > GRID_X + col * CELL_W)) return;
+
+        cow.attackCooldown--;
+        if (cow.attackCooldown > 0) return;
+        cow.attackCooldown = cowDef.attackRate;
+
+        const pos = cellCenter(row, col);
+        milkBullets.push({
+            x: pos.x + 25, y: pos.y - 5, row, vx: 6, damage: cowDef.damage,
+            size: cow.type === 'lv3' ? 8 : (cow.type === 'lv2' ? 6 : 5), trail: []
+        });
+        cow.muzzleFlash = 1;
+    }
+
+    // ===== 收集牛逻辑：收集同一行格子范围内的金币 =====
+    function collectorLogic(cow, row, col) {
+        const pos = cellCenter(row, col);
+        const rowTop = GRID_Y + row * CELL_H;
+        const rowBottom = rowTop + CELL_H;
+        const rowCenterY = pos.y;
+
+        drops = drops.filter(d => {
+            if (d.attracted) {
+                // 已被吸引的继续飞向收集牛
+                const dx = pos.x - d.x, dy = pos.y - d.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                d.x += dx / dist * 6;
+                d.y += dy / dist * 6;
+                if (dist < 18) {
+                    coins += d.value;
+                    addFloatingText(pos.x, pos.y - 30, `+${d.value}💰`, '#ffd700', 16);
+                    cow.collectAnim = 1;
+                    updateUI(); updateShopUI();
+                    return false;
+                }
+                return true;
+            }
+
+            // 检查金币是否在同一行范围内
+            if (d.y >= rowTop - 10 && d.y <= rowBottom + 10) {
+                // 吸引金币飞向收集牛
+                d.attracted = true;
+                return true;
+            }
+            return true;
+        });
+    }
+
+    // ===== 更新逻辑 =====
+    function update() {
+        frameCount++;
+
+        if (waveDelay > 0) {
+            waveDelay--;
+            if (waveDelay === 0) addFloatingText(450, 250, `🌊 第 ${wave} 波来袭！`, '#ff4444', 32);
+            updateCows(); updateDrops(); updateParticles(); updateFloatingTexts();
+            return;
+        }
+
+        if (waveZombieSpawned < waveZombieTotal) {
+            spawnTimer--;
+            if (spawnTimer <= 0) { spawnZombie(); spawnTimer = Math.max(40, 120 - wave * 8); }
+        }
+
+        if (waveZombieSpawned >= waveZombieTotal && zombies.length === 0 && waveZombieKilled >= waveZombieTotal) {
+            wave++;
+            waveZombieTotal = 5 + wave * 3;
+            waveZombieSpawned = 0; waveZombieKilled = 0;
+            waveDelay = 150;
+            updateUI();
+        }
+
+        updateCows(); updateZombies(); updateMilkBullets();
+        updateDrops(); updateParticles(); updateFloatingTexts();
+
+        if (screenShake > 0) screenShake *= 0.85;
+        if (screenShake < 0.1) screenShake = 0;
+    }
+
+    function updateCows() {
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                const cow = grid[r][c];
+                if (!cow) continue;
+                if (cow.type === 'collector') collectorLogic(cow, r, c);
+                else cowAttack(cow, r, c);
+                if (cow.muzzleFlash > 0) cow.muzzleFlash -= 0.08;
+                if (cow.collectAnim > 0) cow.collectAnim -= 0.05;
+            }
+        }
+    }
+
+    function updateZombies() {
+        zombies.forEach(z => {
+            z.wobble += 0.08;
+            z.eating = false; z.eatTarget = null;
+            for (let c = COLS - 1; c >= 0; c--) {
+                const cow = grid[z.row][c];
+                if (!cow) continue;
+                const cowX = GRID_X + c * CELL_W + CELL_W / 2;
+                if (z.x - cowX < 30 && z.x - cowX > -10) {
+                    z.eating = true; z.eatTarget = cow;
+                    cow.hp -= 0.5;
+                    if (cow.hp <= 0) {
+                        const pos = cellCenter(z.row, c);
+                        addFloatingText(pos.x, pos.y, '💀 牛牛阵亡!', '#ff4444', 18);
+                        createExplosion(pos.x, pos.y, '#ffaa00');
+                        grid[z.row][c] = null;
+                    }
+                    break;
+                }
+            }
+            if (!z.eating) z.x -= z.speed;
+            if (z.x < GRID_X - 30) gameOver();
+        });
+        zombies = zombies.filter(z => z.hp > 0);
+    }
+
+    function updateMilkBullets() {
+        milkBullets.forEach(b => {
+            b.x += b.vx;
+            b.trail.push({ x: b.x, y: b.y, alpha: 1 });
+            if (b.trail.length > 8) b.trail.shift();
+            b.trail.forEach(t => t.alpha -= 0.12);
+            for (let i = 0; i < zombies.length; i++) {
+                const z = zombies[i];
+                if (z.row !== b.row) continue;
+                if (Math.abs(b.x - z.x) < 25 && Math.abs(b.y - z.y) < 35) {
+                    z.hp -= b.damage;
+                    createMilkSplash(b.x, b.y);
+                    b.hit = true;
+                    if (z.hp <= 0) killZombie(z);
+                    break;
+                }
+            }
+        });
+        milkBullets = milkBullets.filter(b => !b.hit && b.x < canvasW + 20);
+    }
+
+    function killZombie(z) {
+        createExplosion(z.x, z.y, '#ff4400');
+        createExplosion(z.x, z.y, '#88ff44');
+        kills++; waveZombieKilled++;
+
+        // 固定掉落2枚金币（每枚=5元）
+        for (let i = 0; i < 2; i++) {
+            drops.push({
+                x: z.x + (Math.random() - 0.5) * 30,
+                y: z.y + (Math.random() - 0.5) * 20,
+                type: 'coin', value: COIN_VALUE,
+                vy: -2 - Math.random() * 2,
+                vx: (Math.random() - 0.5) * 3,
+                groundY: z.y + 20 + Math.random() * 20,
+                alpha: 1, attracted: false,
+                bobPhase: Math.random() * Math.PI * 2
+            });
+        }
+
+        // 随机掉落额外金币（0~1枚，波次越高概率越大）
+        if (Math.random() < 0.3 + wave * 0.05) {
+            const bonus = BONUS_COINS[Math.floor(Math.random() * BONUS_COINS.length)];
+            drops.push({
+                x: z.x + (Math.random() - 0.5) * 20,
+                y: z.y - 10,
+                type: 'coin', value: bonus.value, bonusCoin: bonus,
+                vy: -3 - Math.random() * 2,
+                vx: (Math.random() - 0.5) * 4,
+                groundY: z.y + 15 + Math.random() * 15,
+                alpha: 1, attracted: false,
+                bobPhase: Math.random() * Math.PI * 2
+            });
+        }
+
+        addFloatingText(z.x, z.y - 30, `+${COIN_VALUE * 2}💰`, '#ffd700', 22);
+        screenShake = 4;
+        updateUI();
+    }
+
+    function updateDrops() {
+        drops.forEach(d => {
+            if (!d.attracted) {
+                d.vy += 0.15; d.x += d.vx; d.y += d.vy;
+                if (d.y >= d.groundY) { d.y = d.groundY; d.vy = 0; d.vx *= 0.8; }
+                d.bobPhase += 0.05;
+            }
+        });
+        drops = drops.filter(d => {
+            if (d.attracted) return true;
+            d._life = (d._life || 0) + 1;
+            if (d._life > 900) d.alpha -= 0.02;
+            return d.alpha > 0;
+        });
+    }
+
+    function updateParticles() {
+        particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.alpha -= p.decay; p.size *= 0.97; });
+        particles = particles.filter(p => p.alpha > 0);
+    }
+
+    function updateFloatingTexts() {
+        floatingTexts.forEach(ft => { ft.y += ft.vy; ft.alpha -= 0.012; });
+        floatingTexts = floatingTexts.filter(ft => ft.alpha > 0);
+    }
+
+    // ===== 特效 =====
+    function createExplosion(x, y, color) {
+        for (let i = 0; i < 10; i++) {
+            const angle = (Math.PI * 2 / 10) * i + Math.random() * 0.5;
+            const speed = 2 + Math.random() * 3;
+            particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 1, size: 2 + Math.random() * 4, alpha: 1, color, decay: 0.02 + Math.random() * 0.02 });
+        }
+    }
+
+    function createMilkSplash(x, y) {
+        for (let i = 0; i < 5; i++) {
+            particles.push({ x, y, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4, size: 2 + Math.random() * 3, alpha: 0.8, color: '#fff8e7', decay: 0.04 });
+        }
+    }
+
+    function addFloatingText(x, y, text, color, size) {
+        floatingTexts.push({ x, y, text, color, size: size || 20, alpha: 1, vy: -1.5 });
+    }
+
+    // ===== 绘制 =====
+    function draw() {
+        ctx.save();
+        if (screenShake > 0) ctx.translate((Math.random() - 0.5) * screenShake * 2, (Math.random() - 0.5) * screenShake * 2);
+        drawBackground(); drawGrid(); drawDrops(); drawMilkBullets(); drawZombies(); drawCows(); drawParticles(); drawFloatingTexts();
+        ctx.restore();
+    }
+
+    function drawBackground() {
+        const grad = ctx.createLinearGradient(0, 0, 0, canvasH);
+        grad.addColorStop(0, '#0a0a23'); grad.addColorStop(0.5, '#16213e'); grad.addColorStop(1, '#1a3a1a');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, canvasW, canvasH);
+
+        ctx.fillStyle = '#f5f5dc'; ctx.shadowColor = '#f5f5dc'; ctx.shadowBlur = 25;
+        ctx.beginPath(); ctx.arc(780, 50, 30, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+        ctx.fillStyle = '#0a0a23'; ctx.beginPath(); ctx.arc(792, 42, 26, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = 'rgba(255,255,200,0.6)';
+        for (let i = 0; i < 30; i++) {
+            const sx = (i * 137 + 50) % canvasW, sy = (i * 97 + 20) % (canvasH * 0.4);
+            ctx.globalAlpha = 0.3 + Math.sin(frameCount * 0.03 + i) * 0.3;
+            ctx.beginPath(); ctx.arc(sx, sy, 1 + (i % 3) * 0.5, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    function drawGrid() {
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                const x = GRID_X + c * CELL_W, y = GRID_Y + r * CELL_H;
+                ctx.fillStyle = (r + c) % 2 === 0 ? 'rgba(34,85,34,0.6)' : 'rgba(28,70,28,0.6)';
+                ctx.fillRect(x, y, CELL_W, CELL_H);
+                ctx.strokeStyle = 'rgba(60,120,60,0.3)'; ctx.lineWidth = 1; ctx.strokeRect(x, y, CELL_W, CELL_H);
+            }
+        }
+        ctx.fillStyle = 'rgba(80,50,30,0.5)'; ctx.fillRect(0, GRID_Y, GRID_X, ROWS * CELL_H);
+        ctx.fillStyle = '#5a3a20'; ctx.fillRect(20, GRID_Y + 50, 70, 100);
+        ctx.fillStyle = '#7a5a3a'; ctx.beginPath();
+        ctx.moveTo(10, GRID_Y + 50); ctx.lineTo(55, GRID_Y + 10); ctx.lineTo(100, GRID_Y + 50); ctx.fill();
+        ctx.fillStyle = '#3a2010'; ctx.fillRect(42, GRID_Y + 110, 26, 40);
+        ctx.fillStyle = '#ffdd44'; ctx.shadowColor = '#ffdd44'; ctx.shadowBlur = 8;
+        ctx.fillRect(30, GRID_Y + 70, 18, 18); ctx.fillRect(62, GRID_Y + 70, 18, 18); ctx.shadowBlur = 0;
+
+        const grassGrad = ctx.createLinearGradient(0, GRID_Y + ROWS * CELL_H, 0, canvasH);
+        grassGrad.addColorStop(0, '#2a5a1a'); grassGrad.addColorStop(1, '#1a3a10');
+        ctx.fillStyle = grassGrad; ctx.fillRect(0, GRID_Y + ROWS * CELL_H, canvasW, canvasH - GRID_Y - ROWS * CELL_H);
+    }
+
+    function drawCows() {
+        for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+            const cow = grid[r][c]; if (!cow) continue;
+            drawCow(cow, cellCenter(r, c).x, cellCenter(r, c).y);
+        }
+    }
+
+    function drawCow(cow, cx, cy) {
+        const bob = Math.sin(frameCount * 0.06 + cow.bobOffset) * 2;
+        ctx.save(); ctx.translate(cx, cy + bob);
+
+        ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0, 32, 22, 6, 0, 0, Math.PI * 2); ctx.fill();
+
+        const bodyColor = cow.type === 'lv1' ? '#f5f5f5' : cow.type === 'lv2' ? '#e8d8c8' : cow.type === 'lv3' ? '#c8a882' : '#f0f0f0';
+        ctx.fillStyle = bodyColor; ctx.beginPath(); ctx.ellipse(0, 8, 22, 26, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1.5; ctx.stroke();
+
+        if (cow.type !== 'lv3') {
+            ctx.fillStyle = cow.type === 'lv2' ? '#5a3a2a' : '#333';
+            ctx.beginPath(); ctx.arc(-8, 2, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(8, 14, 5, 0, Math.PI * 2); ctx.fill();
+        } else {
+            ctx.fillStyle = '#8a6a4a'; ctx.fillRect(-20, -5, 40, 25);
+            ctx.fillStyle = '#6a4a2a'; ctx.fillRect(-18, -3, 36, 21);
+        }
+
+        ctx.fillStyle = bodyColor; ctx.beginPath(); ctx.arc(0, -18, 16, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1.5; ctx.stroke();
+
+        ctx.fillStyle = cow.type === 'lv3' ? '#ffd700' : '#d4a574';
+        ctx.beginPath(); ctx.moveTo(-10, -30); ctx.quadraticCurveTo(-18, -42, -12, -38); ctx.quadraticCurveTo(-8, -34, -8, -28); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(10, -30); ctx.quadraticCurveTo(18, -42, 12, -38); ctx.quadraticCurveTo(8, -34, 8, -28); ctx.fill();
+
+        const hasTarget = cow.type !== 'collector' && zombies.some(z => z.row === cow.row);
+        if (hasTarget || cow.type === 'collector') {
+            ctx.fillStyle = cow.type === 'collector' ? '#4488ff' : '#ff3300';
+            ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6;
+        } else ctx.fillStyle = '#333';
+        ctx.beginPath(); ctx.arc(-6, -20, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(6, -20, 3, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+
+        ctx.fillStyle = 'white';
+        ctx.beginPath(); ctx.arc(-5, -21, 1.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(7, -21, 1.2, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = '#ffb6c1'; ctx.beginPath(); ctx.ellipse(0, -12, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e88a9a';
+        ctx.beginPath(); ctx.ellipse(-3, -12, 2, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(3, -12, 2, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+
+        if (cow.type === 'collector') {
+            ctx.fillStyle = '#8B4513'; ctx.beginPath();
+            ctx.moveTo(-12, -30); ctx.lineTo(-8, -42); ctx.lineTo(8, -42); ctx.lineTo(12, -30); ctx.fill();
+            ctx.strokeStyle = '#654321'; ctx.lineWidth = 1; ctx.stroke();
+            if (cow.collectAnim > 0) {
+                ctx.fillStyle = `rgba(255,215,0,${cow.collectAnim})`;
+                ctx.beginPath(); ctx.arc(0, -36, 6, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        if (cow.type !== 'collector') {
+            ctx.fillStyle = '#ffccaa'; ctx.beginPath(); ctx.ellipse(20, -8, 5, 4, 0, 0, Math.PI * 2); ctx.fill();
+            if (cow.muzzleFlash > 0) {
+                const mc = cow.type === 'lv3' ? 'rgba(255,220,100,' : cow.type === 'lv2' ? 'rgba(255,240,200,' : 'rgba(255,255,240,';
+                ctx.fillStyle = mc + cow.muzzleFlash + ')';
+                ctx.beginPath(); ctx.ellipse(28, -8, 6 + cow.muzzleFlash * 8, 4 + cow.muzzleFlash * 4, 0, 0, Math.PI * 2); ctx.fill();
+                for (let i = 0; i < 3; i++) {
+                    ctx.fillStyle = mc + (cow.muzzleFlash * 0.6) + ')';
+                    ctx.beginPath(); ctx.arc(30 + i * 5 + Math.random() * 4, -8 + (Math.random() - 0.5) * 10, 2, 0, Math.PI * 2); ctx.fill();
+                }
+            }
+        }
+
+        ctx.fillStyle = bodyColor; ctx.fillRect(-14, 28, 8, 12); ctx.fillRect(6, 28, 8, 12);
+        ctx.fillStyle = '#333'; ctx.fillRect(-15, 37, 10, 4); ctx.fillRect(5, 37, 10, 4);
+
+        if (cow.hp < cow.maxHp) {
+            ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(-22, -48, 44, 5);
+            ctx.fillStyle = cow.hp > cow.maxHp * 0.3 ? '#4CAF50' : '#f44336';
+            ctx.fillRect(-22, -48, 44 * (cow.hp / cow.maxHp), 5);
+        }
+        ctx.restore();
+    }
+
+    function drawZombies() {
+        zombies.forEach(z => {
+            ctx.save(); ctx.translate(z.x, z.y);
+            ctx.rotate(Math.sin(z.wobble) * 0.08);
+            const scale = z.isBig ? 1.4 : (z.isFast ? 0.8 : 1); ctx.scale(scale, scale);
+
+            ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0, 28, 16, 5, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = z.isBig ? '#3a5a2a' : '#5a8a4a'; ctx.beginPath(); ctx.ellipse(0, 5, 15, 22, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#4a3728'; ctx.fillRect(-13, -3, 26, 18);
+            ctx.fillStyle = z.isBig ? '#4a6a3a' : '#6a9a5a'; ctx.beginPath(); ctx.arc(0, -18, 14, 0, Math.PI * 2); ctx.fill();
+
+            ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 1.5;
+            for (let i = -6; i <= 6; i += 3) { ctx.beginPath(); ctx.moveTo(i, -30); ctx.lineTo(i + Math.sin(z.wobble + i) * 2, -35); ctx.stroke(); }
+
+            ctx.fillStyle = '#ff0000'; ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 6;
+            ctx.beginPath(); ctx.arc(-5, -20, 2.5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(5, -20, 2.5, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+
+            ctx.fillStyle = '#4a0000'; ctx.beginPath(); ctx.arc(0, -10, 5, 0, Math.PI); ctx.fill();
+
+            ctx.fillStyle = z.isBig ? '#4a6a3a' : '#6a9a5a';
+            ctx.save(); ctx.translate(-15, -3); ctx.rotate(-0.3 + Math.sin(z.wobble) * 0.2); ctx.fillRect(-16, -3, 16, 6); ctx.restore();
+            ctx.save(); ctx.translate(15, -3); ctx.rotate(0.3 + Math.sin(z.wobble + 1) * 0.2); ctx.fillRect(0, -3, 16, 6); ctx.restore();
+
+            const legMove = Math.sin(z.wobble * 1.3) * 4;
+            ctx.fillRect(-10, 22, 7, 12 + legMove); ctx.fillRect(3, 22, 7, 12 - legMove);
+
+            if (z.hp < z.maxHp) {
+                ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(-18, -40, 36, 4);
+                ctx.fillStyle = z.hp > z.maxHp * 0.3 ? '#4CAF50' : '#f44336';
+                ctx.fillRect(-18, -40, 36 * (z.hp / z.maxHp), 4);
+            }
+            if (z.eating) { ctx.fillStyle = 'rgba(0,255,0,0.3)'; ctx.beginPath(); ctx.arc(0, -10, 8, 0, Math.PI * 2); ctx.fill(); }
+            ctx.restore();
+        });
+    }
+
+    function drawMilkBullets() {
+        milkBullets.forEach(b => {
+            b.trail.forEach(t => {
+                if (t.alpha <= 0) return;
+                ctx.globalAlpha = t.alpha * 0.5; ctx.fillStyle = '#fff8e7';
+                ctx.beginPath(); ctx.arc(t.x, t.y, b.size * 0.6, 0, Math.PI * 2); ctx.fill();
+            });
+            ctx.globalAlpha = 1; ctx.fillStyle = '#fffef5'; ctx.shadowColor = '#fff8dc'; ctx.shadowBlur = 8;
+            ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(b.x - 1, b.y - 1, b.size * 0.4, 0, Math.PI * 2); ctx.fill();
+        });
+    }
+
+    // ===== 绘制金币掉落 =====
+    function drawDrops() {
+        drops.forEach(d => {
+            ctx.save();
+            ctx.globalAlpha = d.alpha;
+            const bob = d.attracted ? 0 : Math.sin(d.bobPhase) * 2;
+            const isBonus = d.bonusCoin;
+            const coinColor = isBonus ? d.bonusCoin.color : '#ffd700';
+            const coinR = isBonus ? d.bonusCoin.radius : 8;
+
+            // 脉冲光效
+            if (!d.attracted) {
+                const pulse = 0.3 + Math.sin(frameCount * 0.08 + d.bobPhase) * 0.2;
+                ctx.strokeStyle = `rgba(255,215,0,${pulse})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(d.x, d.y + bob, coinR + 6, 0, Math.PI * 2); ctx.stroke();
+            }
+
+            // 金币
+            ctx.fillStyle = coinColor;
+            ctx.shadowColor = coinColor; ctx.shadowBlur = isBonus ? 10 : 6;
+            ctx.beginPath(); ctx.arc(d.x, d.y + bob, coinR, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // 高光
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.beginPath(); ctx.arc(d.x - coinR * 0.2, d.y + bob - coinR * 0.2, coinR * 0.4, 0, Math.PI * 2); ctx.fill();
+
+            // 面值
+            ctx.fillStyle = isBonus ? '#fff' : '#b8860b';
+            ctx.font = `bold ${isBonus ? (coinR < 9 ? 8 : 10) : 8}px Arial`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(d.value + '元', d.x, d.y + bob + 1);
+
+            ctx.restore();
+        });
+    }
+
+    function drawParticles() {
+        particles.forEach(p => {
+            ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        });
+    }
+
+    function drawFloatingTexts() {
+        floatingTexts.forEach(ft => {
+            ctx.save(); ctx.globalAlpha = ft.alpha; ctx.fillStyle = ft.color;
+            ctx.font = `bold ${ft.size}px Arial`; ctx.textAlign = 'center';
+            ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 4;
+            ctx.fillText(ft.text, ft.x, ft.y); ctx.restore();
+        });
+    }
+
+    // ===== 游戏循环 =====
+    function gameLoop() {
+        if (gameState !== 'playing') return;
+        update(); draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function drawMenuBg() {
+        if (gameState !== 'menu') return;
+        drawBackground(); drawGrid();
+        requestAnimationFrame(drawMenuBg);
+    }
+    drawMenuBg();
+    </script>
+</body>
+</html>
