@@ -85,6 +85,7 @@
             <div class="resource"><span class="icon">💰</span> 金币: <span class="val" id="coinCount">0</span>元</div>
             <div class="wave-info" id="waveInfo">第 1 波</div>
             <div class="resource"><span class="icon">💀</span> 击杀: <span class="val" id="killCount">0</span></div>
+            <div style="cursor:pointer;font-size:24px;" id="muteBtn" onclick="toggleMute()">🔊</div>
         </div>
         <div id="shopBar">
             <div class="shop-item" data-type="collector" onclick="selectCow('collector')">
@@ -153,6 +154,142 @@
     const CELL_W = 80, CELL_H = 90;
     const GRID_X = 110, GRID_Y = 30;
     const canvasW = 900, canvasH = 500;
+
+    // ===== 音频管理器（Web Audio API 程序化生成） =====
+    let audioCtx = null;
+    let bgmGain = null;
+    let sfxGain = null;
+    let bgmPlaying = false;
+    let muted = false;
+
+    function initAudio() {
+        if (audioCtx) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        bgmGain = audioCtx.createGain();
+        bgmGain.gain.value = 0.12;
+        bgmGain.connect(audioCtx.destination);
+        sfxGain = audioCtx.createGain();
+        sfxGain.gain.value = 0.3;
+        sfxGain.connect(audioCtx.destination);
+    }
+
+    function toggleMute() {
+        muted = !muted;
+        if (bgmGain) bgmGain.gain.value = muted ? 0 : 0.12;
+        if (sfxGain) sfxGain.gain.value = muted ? 0 : 0.3;
+        document.getElementById('muteBtn').textContent = muted ? '🔇' : '🔊';
+    }
+
+    // 播放一个音符
+    function playTone(freq, duration, type, gainNode, volume, delay) {
+        if (!audioCtx || muted) return;
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = type || 'sine';
+        osc.frequency.value = freq;
+        g.gain.value = volume || 0.1;
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration + (delay || 0));
+        osc.connect(g);
+        g.connect(gainNode);
+        osc.start(audioCtx.currentTime + (delay || 0));
+        osc.stop(audioCtx.currentTime + duration + (delay || 0) + 0.05);
+    }
+
+    // ===== 背景音乐（循环播放） =====
+    let bgmInterval = null;
+    const BGM_NOTES = [
+        // 小调紧张旋律
+        [262, 0.3], [294, 0.3], [330, 0.3], [294, 0.3],
+        [349, 0.3], [330, 0.3], [294, 0.3], [262, 0.3],
+        [247, 0.3], [262, 0.3], [294, 0.3], [330, 0.3],
+        [294, 0.6], [262, 0.6],
+        [330, 0.3], [349, 0.3], [392, 0.3], [349, 0.3],
+        [330, 0.3], [294, 0.3], [262, 0.3], [247, 0.3],
+        [262, 0.3], [294, 0.3], [330, 0.3], [294, 0.3],
+        [262, 0.6], [247, 0.6],
+    ];
+
+    function startBGM() {
+        if (bgmPlaying || !audioCtx) return;
+        bgmPlaying = true;
+        let noteIndex = 0;
+        function playNextNote() {
+            if (!bgmPlaying) return;
+            const [freq, dur] = BGM_NOTES[noteIndex % BGM_NOTES.length];
+            playTone(freq, dur * 0.9, 'triangle', bgmGain, 0.15, 0);
+            // 和声
+            playTone(freq * 0.5, dur * 0.9, 'sine', bgmGain, 0.06, 0);
+            noteIndex++;
+            bgmInterval = setTimeout(playNextNote, dur * 1000);
+        }
+        playNextNote();
+    }
+
+    function stopBGM() {
+        bgmPlaying = false;
+        if (bgmInterval) { clearTimeout(bgmInterval); bgmInterval = null; }
+    }
+
+    // ===== 音效 =====
+    function sfxPlace() { // 放置牛牛
+        playTone(523, 0.1, 'sine', sfxGain, 0.2, 0);
+        playTone(659, 0.1, 'sine', sfxGain, 0.2, 0.08);
+        playTone(784, 0.15, 'sine', sfxGain, 0.15, 0.16);
+    }
+
+    function sfxShoot() { // 吐奶
+        playTone(800 + Math.random() * 200, 0.08, 'square', sfxGain, 0.06, 0);
+        playTone(600, 0.06, 'sine', sfxGain, 0.04, 0.02);
+    }
+
+    function sfxHit() { // 奶弹命中
+        playTone(300, 0.1, 'sawtooth', sfxGain, 0.08, 0);
+        playTone(200, 0.15, 'sine', sfxGain, 0.06, 0.03);
+    }
+
+    function sfxKill() { // 击杀僵尸
+        playTone(400, 0.1, 'square', sfxGain, 0.1, 0);
+        playTone(500, 0.1, 'square', sfxGain, 0.1, 0.08);
+        playTone(600, 0.15, 'square', sfxGain, 0.08, 0.16);
+        playTone(800, 0.2, 'sine', sfxGain, 0.06, 0.24);
+    }
+
+    function sfxCoin() { // 拾取金币
+        playTone(1200, 0.06, 'sine', sfxGain, 0.1, 0);
+        playTone(1500, 0.08, 'sine', sfxGain, 0.08, 0.05);
+        playTone(1800, 0.1, 'sine', sfxGain, 0.06, 0.1);
+    }
+
+    function sfxWave() { // 新波次
+        playTone(200, 0.3, 'sawtooth', sfxGain, 0.1, 0);
+        playTone(250, 0.3, 'sawtooth', sfxGain, 0.1, 0.2);
+        playTone(300, 0.3, 'sawtooth', sfxGain, 0.1, 0.4);
+        playTone(200, 0.5, 'sawtooth', sfxGain, 0.08, 0.6);
+    }
+
+    function sfxCowDie() { // 牛牛阵亡
+        playTone(400, 0.15, 'sawtooth', sfxGain, 0.1, 0);
+        playTone(300, 0.2, 'sawtooth', sfxGain, 0.1, 0.1);
+        playTone(200, 0.3, 'sawtooth', sfxGain, 0.08, 0.2);
+    }
+
+    function sfxGameOver() { // 游戏结束
+        playTone(400, 0.3, 'sine', sfxGain, 0.15, 0);
+        playTone(350, 0.3, 'sine', sfxGain, 0.15, 0.3);
+        playTone(300, 0.3, 'sine', sfxGain, 0.15, 0.6);
+        playTone(200, 0.6, 'sine', sfxGain, 0.12, 0.9);
+    }
+
+    function sfxSkyDrop() { // 天降金币
+        playTone(1000, 0.08, 'sine', sfxGain, 0.08, 0);
+        playTone(1400, 0.08, 'sine', sfxGain, 0.06, 0.06);
+        playTone(1800, 0.12, 'sine', sfxGain, 0.05, 0.12);
+    }
+
+    function sfxShovel() { // 铲除
+        playTone(300, 0.1, 'sawtooth', sfxGain, 0.08, 0);
+        playTone(200, 0.15, 'sawtooth', sfxGain, 0.06, 0.08);
+    }
 
     // 金币定义：1金币=5元
     const COIN_VALUE = 5;
@@ -233,6 +370,8 @@
 
     function startGame() {
         document.getElementById('overlay').style.display = 'none';
+        initAudio();
+        startBGM();
         gameState = 'playing';
         coins = 0;
         kills = 0; wave = 1; frameCount = 0;
@@ -249,11 +388,14 @@
 
     function restartGame() {
         document.getElementById('gameOverPanel').style.display = 'none';
+        startBGM();
         startGame();
     }
 
     function gameOver() {
         gameState = 'gameover';
+        stopBGM();
+        sfxGameOver();
         document.getElementById('finalKills').textContent = kills;
         document.getElementById('finalWave').textContent = wave;
         document.getElementById('gameOverPanel').style.display = 'block';
@@ -317,6 +459,7 @@
             if (Math.sqrt(dx * dx + dy * dy) < collectRadius) {
                 coins += d.value;
                 addFloatingText(d.x, d.y - 15, `+${d.value}💰`, '#ffd700', 18);
+                sfxCoin();
                 for (let j = 0; j < 5; j++) {
                     particles.push({
                         x: d.x, y: d.y,
@@ -347,6 +490,7 @@
             if (grid[cell.row][cell.col]) {
                 const pos = cellCenter(cell.row, cell.col);
                 addFloatingText(pos.x, pos.y, '铲除!', '#ff8888', 18);
+                sfxShovel();
                 grid[cell.row][cell.col] = null;
             }
             return;
@@ -378,6 +522,7 @@
             row: cell.row, col: cell.col
         };
         addFloatingText(pos.x, pos.y - 20, cowDef.emoji + (isFree ? ' 免费放置!' : ' 放置!'), '#00ff88', 18);
+        sfxPlace();
         updateUI(); updateShopUI();
     }
 
@@ -432,6 +577,7 @@
 
         // 掉落提示
         addFloatingText(x, GRID_Y - 30, '💰 天降金币!', '#ffd700', 14);
+        sfxSkyDrop();
     }
 
     // ===== 吐奶攻击 =====
@@ -450,6 +596,7 @@
             size: cow.type === 'lv3' ? 8 : (cow.type === 'lv2' ? 6 : 5), trail: []
         });
         cow.muzzleFlash = 1;
+        sfxShoot();
     }
 
     // ===== 收集牛逻辑：收集同一行格子范围内的金币 =====
@@ -470,6 +617,7 @@
                     coins += d.value;
                     addFloatingText(pos.x, pos.y - 30, `+${d.value}💰`, '#ffd700', 16);
                     cow.collectAnim = 1;
+                    sfxCoin();
                     updateUI(); updateShopUI();
                     return false;
                 }
@@ -492,7 +640,7 @@
 
         if (waveDelay > 0) {
             waveDelay--;
-            if (waveDelay === 0) addFloatingText(450, 250, `🌊 第 ${wave} 波来袭！`, '#ff4444', 32);
+            if (waveDelay === 0) { addFloatingText(450, 250, `🌊 第 ${wave} 波来袭！`, '#ff4444', 32); sfxWave(); }
             updateCows(); updateDrops(); updateParticles(); updateFloatingTexts();
             return;
         }
@@ -551,6 +699,7 @@
                     if (cow.hp <= 0) {
                         const pos = cellCenter(z.row, c);
                         addFloatingText(pos.x, pos.y, '💀 牛牛阵亡!', '#ff4444', 18);
+                        sfxCowDie();
                         createExplosion(pos.x, pos.y, '#ffaa00');
                         grid[z.row][c] = null;
                     }
@@ -575,6 +724,7 @@
                 if (Math.abs(b.x - z.x) < 25 && Math.abs(b.y - z.y) < 35) {
                     z.hp -= b.damage;
                     createMilkSplash(b.x, b.y);
+                    sfxHit();
                     b.hit = true;
                     if (z.hp <= 0) killZombie(z);
                     break;
@@ -588,6 +738,7 @@
         createExplosion(z.x, z.y, '#ff4400');
         createExplosion(z.x, z.y, '#88ff44');
         kills++; waveZombieKilled++;
+        sfxKill();
 
         // 固定掉落2枚金币（每枚=5元）
         for (let i = 0; i < 2; i++) {
