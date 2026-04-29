@@ -490,9 +490,11 @@
         if (selectedCow === 'shovel') {
             if (grid[cell.row][cell.col]) {
                 const pos = cellCenter(cell.row, cell.col);
-                addFloatingText(pos.x, pos.y, '铲除!', '#ff8888', 18);
+                addFloatingText(pos.x, pos.y, '铲除! +5💰', '#ff8888', 18);
                 sfxShovel();
+                coins += 5;
                 grid[cell.row][cell.col] = null;
+                updateUI(); updateShopUI();
             }
             return;
         }
