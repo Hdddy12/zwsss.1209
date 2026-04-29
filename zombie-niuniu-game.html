@@ -323,6 +323,7 @@
     let waveDelay = 0;
     let freeLv1Placed = false;
     let skyDropTimer = 0; // 天空掉落计时器
+    let skyDropUsed = false; // 本轮是否已掉落
 
     // 牛牛定义 — 全部用金币(元)购买
     const COW_TYPES = {
@@ -655,17 +656,21 @@
             waveZombieTotal = 3 + wave * 4; // 每波增加4只（成长更快）
             waveZombieSpawned = 0; waveZombieKilled = 0;
             waveDelay = 150;
+            skyDropUsed = false; // 新波次重置天空掉落
+            skyDropTimer = 60 + Math.floor(Math.random() * 120); // 随机1~3秒后掉落
             updateUI();
         }
 
         updateCows(); updateZombies(); updateMilkBullets();
         updateDrops(); updateParticles(); updateFloatingTexts();
 
-        // 天空随机掉落金币奖励
-        skyDropTimer--;
-        if (skyDropTimer <= 0) {
-            spawnSkyDrop();
-            skyDropTimer = 180 + Math.floor(Math.random() * 120); // 每3~5秒掉一个
+        // 每轮只掉落一次天空金币
+        if (!skyDropUsed) {
+            skyDropTimer--;
+            if (skyDropTimer <= 0) {
+                spawnSkyDrop();
+                skyDropUsed = true;
+            }
         }
 
         if (screenShake > 0) screenShake *= 0.85;
